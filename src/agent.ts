@@ -3,12 +3,13 @@ import type { Server } from "http";
 import fsPromises from "fs/promises";
 import fs from "fs";
 import { execSync } from "child_process";
-import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const ZEN_API_KEY = process.env.ZEN_API_KEY;
 const ZEN_MODEL = process.env.ZEN_MODEL || "big-pickle";
 const ZEN_API_URL = "https://opencode.ai/zen/v1/chat/completions";
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "pNInz6obpgDQGcFmaJgB";
+const ELEVENLABS_API_URL = `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`;
 
 const SILENCE_TIMEOUT_MS = 800;
 const SAMPLE_RATE = 8000;
@@ -270,15 +271,27 @@ export async function askLLM(transcript: string, sessionId?: string): Promise<st
   return reply;
 }
 
-async function synthesize(text: string): Promise<Buffer> {
-  const resp = await openai.audio.speech.create({
-    model: "tts-1",
-    voice: "alloy",
-    input: text,
-    response_format: "pcm",
+export async function elevenlabsTTS(text: string, format: string = "mp3_44100_128"): Promise<Buffer> {
+  const res = await fetch(`${ELEVENLABS_API_URL}?output_format=${format}`, {
+    method: "POST",
+    headers: {
+      "xi-api-key": ELEVENLABS_API_KEY!,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      text,
+      model_id: "eleven_multilingual_v2",
+    }),
   });
-  const buf = Buffer.from(await resp.arrayBuffer());
-  return downsamplePcm(buf, 24000);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`ElevenLabs error ${res.status}: ${err}`);
+  }
+  return Buffer.from(await res.arrayBuffer());
+}
+
+async function synthesize(text: string): Promise<Buffer> {
+  return elevenlabsTTS(text, "ulaw_8000");
 }
 
 export function attachMediaStreamHandler(server: Server) {
@@ -352,8 +365,7 @@ export function attachMediaStreamHandler(server: Server) {
         const reply = await askLLM(transcript);
         console.log(`[Bot] ${reply}`);
 
-        const ttsPcm = await synthesize(reply);
-        const ulawBuf = pcmToUlaw(ttsPcm);
+        const ulawBuf = await synthesize(reply);
         const CHUNK_SIZE = 160;
         for (let i = 0; i < ulawBuf.length; i += CHUNK_SIZE) {
           if (twilioWs.readyState !== WebSocket.OPEN) break;

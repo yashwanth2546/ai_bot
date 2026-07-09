@@ -324,7 +324,13 @@
           });
           const data = await res.json();
           if (data.transcript) addMessage('user', data.transcript);
-          if (data.reply) addMessage('bot', data.reply);
+          if (data.reply) {
+            addMessage('bot', data.reply);
+            if (data.reply_audio) {
+              const audio = new Audio('data:audio/mpeg;base64,' + data.reply_audio);
+              audio.play().catch(() => {});
+            }
+          }
           if (data.booking && data.booking.name) {
             bookingCard.style.display = 'block';
             document.getElementById('bRef').textContent = data.booking.refNo || '—';

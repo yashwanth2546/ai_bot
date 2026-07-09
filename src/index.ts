@@ -4,7 +4,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import twilio from "twilio";
 import VoiceResponse from "twilio/lib/twiml/VoiceResponse.js";
-import { attachMediaStreamHandler, askLLM, transcribeAudio, bookingStore } from "./agent.js";
+import { attachMediaStreamHandler, askLLM, transcribeAudio, bookingStore, elevenlabsTTS } from "./agent.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -68,10 +68,21 @@ app.post("/demo", async (req, res) => {
     const reply = await askLLM(transcript, sessionId);
     console.log(`[Demo] Reply: "${reply}"`);
 
+    let replyAudio: string | undefined;
+    if (reply.trim() && process.env.ELEVENLABS_API_KEY) {
+      try {
+        const audioBuf = await elevenlabsTTS(reply, "mp3_44100_128");
+        replyAudio = audioBuf.toString("base64");
+      } catch (err: any) {
+        console.error(`[Demo] TTS error: ${err.message}`);
+      }
+    }
+
     const booking = sessionId ? bookingStore.get(sessionId) : undefined;
     res.json({
       transcript,
       reply,
+      reply_audio: replyAudio,
       input_length: audioBuf.length,
       booking: booking && booking.name ? booking : undefined,
     });
