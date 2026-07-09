@@ -231,6 +231,9 @@
 
     let audioCtx = null, stream = null, source = null, processor = null;
     let pcmChunks = [], recording = false, pressTimer = 0;
+    let walkieMode = false;
+    let endingWalkie = false;
+    let holdTimer = null;
 
     function setStatus(state, text) {
       statusDot.className = 'status-dot ' + state;
@@ -249,6 +252,7 @@
     }
 
     async function startRecording() {
+      if (endingWalkie) return;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         audioCtx = new AudioContext({ sampleRate: 16000 });
@@ -282,9 +286,7 @@
       recording = false;
       const elapsed = (Date.now() - pressTimer) / 1000;
       if (elapsed < 1) {
-        setStatus('ready', 'Hold for at least 1 second');
-        micBtn.className = 'mic-btn idle';
-        micBtn.innerHTML = '<span class="mic-icon">🎤</span><span class="mic-label">Hold to talk</span>';
+        refreshUI();
         cleanup();
         return;
       }
@@ -328,6 +330,9 @@
             addMessage('bot', data.reply);
             if (data.reply_audio) {
               const audio = new Audio('data:audio/mpeg;base64,' + data.reply_audio);
+              if (walkieMode) {
+                audio.onended = () => { if (walkieMode && !endingWalkie) startRecording(); };
+              }
               audio.play().catch(() => {});
             }
           }
@@ -339,13 +344,23 @@
             document.getElementById('bDate').textContent = data.booking.date;
             document.getElementById('bTime').textContent = data.booking.time;
           }
-          setStatus('ready', 'Done');
+          cleanup();
+          if (walkieMode) {
+            micBtn.className = 'mic-btn idle';
+            micBtn.innerHTML = '<span class="mic-icon">🎤</span><span class="mic-label">Connected — hold to talk</span>';
+            setStatus('ready', 'Connected — hold to talk');
+          } else {
+            refreshUI();
+            setStatus('ready', 'Done');
+          }
         } catch (err) {
           setStatus('ready', 'Error: ' + err.message);
+          if (!walkieMode) {
+            micBtn.className = 'mic-btn idle';
+            micBtn.innerHTML = '<span class="mic-icon">🎤</span><span class="mic-label">Hold to talk</span>';
+            cleanup();
+          }
         }
-        micBtn.className = 'mic-btn idle';
-        micBtn.innerHTML = '<span class="mic-icon">🎤</span><span class="mic-label">Hold to talk</span>';
-        cleanup();
       };
       reader.readAsDataURL(blob);
     }
@@ -358,13 +373,53 @@
       pcmChunks = [];
     }
 
-    micBtn.addEventListener('mousedown', (e) => { e.preventDefault(); startRecording(); });
-    micBtn.addEventListener('mouseup', (e) => { e.preventDefault(); stopRecording(); });
+    function enterWalkie() {
+      walkieMode = true;
+      endingWalkie = false;
+      setStatus('ready', 'Connected — hold to talk');
+      micBtn.className = 'mic-btn idle';
+      micBtn.innerHTML = '<span class="mic-icon">🎤</span><span class="mic-label">Connected — hold to talk</span>';
+    }
+
+    function endWalkie() {
+      endingWalkie = true;
+      walkieMode = false;
+      recording = false;
+      cleanup();
+      refreshUI();
+      setStatus('ready', 'Call ended');
+    }
+
+    function refreshUI() {
+      micBtn.className = 'mic-btn idle';
+      micBtn.innerHTML = '<span class="mic-icon">🎤</span><span class="mic-label">Hold to talk</span>';
+    }
+
+    function handlePress() {
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        startRecording();
+      }, 250);
+    }
+
+    function handleRelease() {
+      if (holdTimer) {
+        clearTimeout(holdTimer);
+        holdTimer = null;
+        if (walkieMode) endWalkie();
+        else enterWalkie();
+        return;
+      }
+      if (!recording) return;
+      stopRecording();
+    }
+
+    micBtn.addEventListener('mousedown', (e) => { e.preventDefault(); handlePress(); });
+    micBtn.addEventListener('mouseup', (e) => { e.preventDefault(); handleRelease(); });
     micBtn.addEventListener('mouseleave', () => { if (recording) stopRecording(); });
 
-    // Touch support
-    micBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRecording(); });
-    micBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopRecording(); });
+    micBtn.addEventListener('touchstart', (e) => { e.preventDefault(); handlePress(); });
+    micBtn.addEventListener('touchend', (e) => { e.preventDefault(); handleRelease(); });
 
     setStatus('ready', 'Ready');
   </script>
