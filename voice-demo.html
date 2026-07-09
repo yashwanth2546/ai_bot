@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RK Royal Engineers — Voice Assistant</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #0a0a0f;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-image: radial-gradient(ellipse at 20% 50%, rgba(180,30,30,0.08) 0%, transparent 60%),
+                        radial-gradient(ellipse at 80% 50%, rgba(0,0,0,0.4) 0%, transparent 60%);
+    }
+    .container {
+      width: 480px;
+      padding: 24px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .logo {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #b41e1e, #8b0000);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 800;
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(180,30,30,0.3);
+    }
+    .header-text h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .header-text p {
+      font-size: 13px;
+      color: #888;
+      margin-top: 2px;
+    }
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 12px;
+      margin-bottom: 24px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #555;
+      transition: all .3s;
+    }
+    .status-dot.ready { background: #2ecc71; box-shadow: 0 0 12px rgba(46,204,113,0.4); }
+    .status-dot.recording { background: #e74c3c; animation: pulse 1s infinite; }
+    .status-dot.processing { background: #f39c12; }
+    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(231,76,60,.4); } 50% { box-shadow: 0 0 0 12px rgba(231,76,60,0); } }
+    .status-text { font-size: 14px; color: #aaa; flex: 1; }
+    .status-time { font-size: 12px; color: #555; font-variant-numeric: tabular-nums; }
+
+    .mic-btn {
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      border: none;
+      margin: 0 auto 28px;
+      display: block;
+      cursor: pointer;
+      transition: all .3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      font-size: 28px;
+      font-weight: 600;
+    }
+    .mic-btn.idle {
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      color: #fff;
+      border: 2px solid rgba(255,255,255,0.1);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    .mic-btn.idle:hover {
+      border-color: #b41e1e;
+      box-shadow: 0 8px 40px rgba(180,30,30,0.2);
+      transform: scale(1.02);
+    }
+    .mic-btn.recording {
+      background: linear-gradient(135deg, #b41e1e, #8b0000);
+      color: #fff;
+      border: 2px solid transparent;
+      box-shadow: 0 0 40px rgba(180,30,30,0.4), inset 0 0 30px rgba(0,0,0,0.1);
+      animation: micPulse 1.5s infinite;
+    }
+    @keyframes micPulse { 0%,100% { box-shadow: 0 0 40px rgba(180,30,30,0.4); } 50% { box-shadow: 0 0 70px rgba(180,30,30,0.2); } }
+    .mic-btn.processing {
+      background: linear-gradient(135deg, #f39c12, #e67e22);
+      color: #fff;
+      border: 2px solid transparent;
+      cursor: wait;
+    }
+    .mic-icon { font-size: 38px; display: block; margin-bottom: 6px; }
+    .mic-label { font-size: 13px; font-weight: 500; opacity: 0.8; }
+
+    .chat-area {
+      background: rgba(255,255,255,0.03);
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.06);
+      padding: 20px;
+      min-height: 200px;
+      max-height: 340px;
+      overflow-y: auto;
+      margin-bottom: 16px;
+    }
+    .chat-area::-webkit-scrollbar { width: 4px; }
+    .chat-area::-webkit-scrollbar-track { background: transparent; }
+    .chat-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+    .msg { margin-bottom: 14px; display: flex; }
+    .msg.user { justify-content: flex-end; }
+    .msg.bot { justify-content: flex-start; }
+    .msg-bubble {
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .msg.user .msg-bubble {
+      background: linear-gradient(135deg, #b41e1e, #8b0000);
+      border-bottom-right-radius: 4px;
+      color: #fff;
+    }
+    .msg.bot .msg-bubble {
+      background: rgba(255,255,255,0.06);
+      border-bottom-left-radius: 4px;
+      color: #ddd;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .msg-label { font-size: 10px; color: #555; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+
+    .booking-card {
+      background: linear-gradient(135deg, rgba(46,204,113,0.1), rgba(39,174,96,0.05));
+      border: 1px solid rgba(46,204,113,0.2);
+      border-radius: 12px;
+      padding: 16px;
+      display: none;
+      margin-bottom: 16px;
+    }
+    .booking-card h3 { font-size: 13px; color: #2ecc71; margin-bottom: 8px; font-weight: 600; }
+    .booking-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+    .booking-item { font-size: 13px; display: flex; gap: 6px; }
+    .booking-item .label { color: #666; min-width: 50px; }
+    .booking-item .value { color: #eee; font-weight: 500; }
+
+    .debug-bar { font-size: 11px; color: #444; text-align: center; margin-top: 8px; font-variant-numeric: tabular-nums; }
+
+    .attribution { text-align: center; margin-top: 20px; font-size: 11px; color: #333; }
+    .attribution span { color: #555; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">RE</div>
+      <div class="header-text">
+        <h1>Alex — Sales Assistant</h1>
+        <p>RK Royal Engineers Pvt. Ltd. · Hyderabad</p>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <div class="status-dot" id="statusDot"></div>
+      <div class="status-text" id="statusText">Ready</div>
+      <div class="status-time" id="statusTime"></div>
+    </div>
+
+    <button class="mic-btn idle" id="micBtn">
+      <span class="mic-icon">🎤</span>
+      <span class="mic-label">Hold to talk</span>
+    </button>
+
+    <div class="chat-area" id="chatArea">
+      <div class="msg bot">
+        <div class="msg-bubble">Good morning! This is Alex from RK Royal Engineers Pvt. Ltd., Hyderabad. How may I assist you today?</div>
+      </div>
+    </div>
+
+    <div class="booking-card" id="bookingCard">
+      <h3>✅ Test Ride Booked</h3>
+      <div class="booking-grid">
+        <div class="booking-item"><span class="label">Ref</span><span class="value" id="bRef">—</span></div>
+        <div class="booking-item"><span class="label">Name</span><span class="value" id="bName">—</span></div>
+        <div class="booking-item"><span class="label">Model</span><span class="value" id="bModel">—</span></div>
+        <div class="booking-item"><span class="label">Date</span><span class="value" id="bDate">—</span></div>
+        <div class="booking-item"><span class="label">Time</span><span class="value" id="bTime">—</span></div>
+      </div>
+    </div>
+
+    <div class="debug-bar" id="debugInfo"></div>
+    <div class="attribution">Powered by <span>whisper.cpp</span> · <span>Big Pickle</span></div>
+  </div>
+
+  <script>
+    const micBtn = document.getElementById('micBtn');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const statusTime = document.getElementById('statusTime');
+    const chatArea = document.getElementById('chatArea');
+    const debugInfo = document.getElementById('debugInfo');
+    const bookingCard = document.getElementById('bookingCard');
+
+    let sessionId = localStorage.getItem('sessionId');
+    if (!sessionId) {
+      sessionId = 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+      localStorage.setItem('sessionId', sessionId);
+    }
+
+    let audioCtx = null, stream = null, source = null, processor = null;
+    let pcmChunks = [], recording = false, pressTimer = 0;
+
+    function setStatus(state, text) {
+      statusDot.className = 'status-dot ' + state;
+      statusText.textContent = text;
+    }
+
+    function addMessage(role, text) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + role;
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+      bubble.textContent = text;
+      div.appendChild(bubble);
+      chatArea.appendChild(div);
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    async function startRecording() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioCtx = new AudioContext({ sampleRate: 16000 });
+        source = audioCtx.createMediaStreamSource(stream);
+        processor = audioCtx.createScriptProcessor(4096, 1, 1);
+        pcmChunks = [];
+        recording = true;
+        source.connect(processor);
+        processor.connect(audioCtx.destination);
+        processor.onaudioprocess = (e) => {
+          if (!recording) return;
+          const input = e.inputBuffer.getChannelData(0);
+          const pcm = new Int16Array(input.length);
+          for (let i = 0; i < input.length; i++) {
+            const s = Math.max(-1, Math.min(1, input[i]));
+            pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          }
+          pcmChunks.push(pcm);
+        };
+        micBtn.className = 'mic-btn recording';
+        micBtn.innerHTML = '<span class="mic-icon">🔴</span><span class="mic-label">Release to send</span>';
+        setStatus('recording', 'Recording...');
+        pressTimer = Date.now();
+      } catch (err) {
+        setStatus('ready', 'Mic error: ' + err.message);
+      }
+    }
+
+    function stopRecording() {
+      if (!recording) return;
+      recording = false;
+      const elapsed = (Date.now() - pressTimer) / 1000;
+      if (elapsed < 1) {
+        setStatus('ready', 'Hold for at least 1 second');
+        micBtn.className = 'mic-btn idle';
+        micBtn.innerHTML = '<span class="mic-icon">🎤</span><span class="mic-label">Hold to talk</span>';
+        cleanup();
+        return;
+      }
+
+      const totalLen = pcmChunks.reduce((s, c) => s + c.length, 0);
+      const pcmBuf = new Int16Array(totalLen);
+      let offset = 0;
+      for (const chunk of pcmChunks) { pcmBuf.set(chunk, offset); offset += chunk.length; }
+
+      const sr = 16000, dataSize = pcmBuf.length * 2;
+      const wav = new ArrayBuffer(44 + dataSize);
+      const view = new DataView(wav);
+      function writeString(off, str) { for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i)); }
+      writeString(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeString(8, 'WAVE');
+      writeString(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true); view.setUint32(24, sr, true); view.setUint32(28, sr * 2, true);
+      view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+      writeString(36, 'data'); view.setUint32(40, dataSize, true);
+      new Int16Array(wav, 44).set(pcmBuf);
+
+      const blob = new Blob([wav], { type: 'audio/wav' });
+      const sizeKB = (blob.size / 1024).toFixed(1);
+      debugInfo.textContent = `Recorded: ${elapsed.toFixed(1)}s · ${sizeKB} KB`;
+
+      micBtn.className = 'mic-btn processing';
+      micBtn.innerHTML = '<span class="mic-icon">⏳</span><span class="mic-label">Processing...</span>';
+      setStatus('processing', 'Transcribing...');
+
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const b64 = reader.result.split(',')[1];
+        try {
+          const res = await fetch('/demo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audio: b64, mime: 'audio/wav', sessionId })
+          });
+          const data = await res.json();
+          if (data.transcript) addMessage('user', data.transcript);
+          if (data.reply) addMessage('bot', data.reply);
+          if (data.booking && data.booking.name) {
+            bookingCard.style.display = 'block';
+            document.getElementById('bRef').textContent = data.booking.refNo || '—';
+            document.getElementById('bName').textContent = data.booking.name;
+            document.getElementById('bModel').textContent = data.booking.model;
+            document.getElementById('bDate').textContent = data.booking.date;
+            document.getElementById('bTime').textContent = data.booking.time;
+          }
+          setStatus('ready', 'Done');
+        } catch (err) {
+          setStatus('ready', 'Error: ' + err.message);
+        }
+        micBtn.className = 'mic-btn idle';
+        micBtn.innerHTML = '<span class="mic-icon">🎤</span><span class="mic-label">Hold to talk</span>';
+        cleanup();
+      };
+      reader.readAsDataURL(blob);
+    }
+
+    function cleanup() {
+      if (processor) { processor.disconnect(); processor = null; }
+      if (source) { source.disconnect(); source = null; }
+      if (audioCtx) { audioCtx.close(); audioCtx = null; }
+      if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+      pcmChunks = [];
+    }
+
+    micBtn.addEventListener('mousedown', (e) => { e.preventDefault(); startRecording(); });
+    micBtn.addEventListener('mouseup', (e) => { e.preventDefault(); stopRecording(); });
+    micBtn.addEventListener('mouseleave', () => { if (recording) stopRecording(); });
+
+    // Touch support
+    micBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRecording(); });
+    micBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopRecording(); });
+
+    setStatus('ready', 'Ready');
+  </script>
+</body>
+</html>

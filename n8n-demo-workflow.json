@@ -1,0 +1,48 @@
+{
+  "name": "AI Bot - Full Pipeline Demo",
+  "nodes": [
+    {
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [240, 300],
+      "parameters": {}
+    },
+    {
+      "id": "read-audio",
+      "name": "Read Audio File",
+      "type": "n8n-nodes-base.readBinaryFiles",
+      "position": [460, 300],
+      "parameters": {
+        "filePath": "/Users/you/Desktop/test-audio.wav"
+      }
+    },
+    {
+      "id": "prepare-json",
+      "name": "Prepare JSON Payload",
+      "type": "n8n-nodes-base.code",
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "const binary = $input.first().binary.data;\nreturn [{\n  json: {\n    audio: binary.data,\n    mime: binary.mimeType\n  }\n}];"
+      }
+    },
+    {
+      "id": "call-demo",
+      "name": "POST /demo",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [900, 300],
+      "parameters": {
+        "url": "http://localhost:8080/demo",
+        "method": "POST",
+        "sendBody": true,
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": { "main": [[ { "node": "Read Audio File", "type": "main", "index": 0 } ]] },
+    "Read Audio File": { "main": [[ { "node": "Prepare JSON Payload", "type": "main", "index": 0 } ]] },
+    "Prepare JSON Payload": { "main": [[ { "node": "POST /demo", "type": "main", "index": 0 } ]] }
+  }
+}

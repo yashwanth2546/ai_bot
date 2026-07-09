@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Bot Demo - Mic Recorder</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #111; color: #eee; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .card { background: #1a1a2e; border-radius: 16px; padding: 32px; width: 480px; box-shadow: 0 8px 32px rgba(0,0,0,.5); }
+    h1 { font-size: 20px; margin-bottom: 8px; }
+    p { color: #888; font-size: 14px; margin-bottom: 24px; }
+    .status { background: #0f0f1f; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; min-height: 40px; }
+    .btn { display: flex; gap: 8px; margin-bottom: 24px; }
+    button { flex: 1; padding: 12px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    #recordBtn { background: #e74c3c; color: #fff; }
+    #recordBtn.recording { background: #c0392b; animation: pulse 1s infinite; }
+    #stopBtn { background: #555; color: #fff; }
+    #sendBtn { background: #2ecc71; color: #fff; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
+    .result { background: #0f0f1f; border-radius: 8px; padding: 16px; }
+    .result h3 { font-size: 13px; color: #888; margin-bottom: 4px; }
+    .result p { font-size: 15px; color: #eee; margin-bottom: 12px; }
+    .result .label { color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+    .error { color: #e74c3c; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #888; border-top-color: #2ecc71; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 8px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    input { width: 100%; padding: 10px 12px; border: 1px solid #333; border-radius: 8px; background: #0f0f1f; color: #eee; font-size: 13px; margin-bottom: 16px; }
+    input::placeholder { color: #555; }
+    .webhook-hint { font-size: 11px; color: #555; margin-top: -12px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🎤 AI Bot Pipeline Demo</h1>
+    <p>Record from your mic → STT → Big Pickle LLM → TTS</p>
+
+    <label style="font-size:13px;color:#888;display:block;margin-bottom:4px;">n8n Webhook URL</label>
+    <input id="webhookUrl" value="https://yashwanth-2546.app.n8n.cloud/webhook/ai-bot-demo" placeholder="https://your-n8n.app.n8n.cloud/webhook/..." />
+    <div class="webhook-hint">Paste your n8n Webhook URL here</div>
+
+    <div class="status" id="status">Ready. Click Record and speak.</div>
+
+    <div class="btn">
+      <button id="recordBtn">🎙️ Record</button>
+      <button id="stopBtn" disabled>⏹️ Stop</button>
+      <button id="sendBtn" disabled>📤 Send</button>
+    </div>
+
+    <div class="result" id="result">
+      <div class="label">Transcript</div>
+      <p id="transcript">—</p>
+      <div class="label">Reply</div>
+      <p id="reply">—</p>
+    </div>
+  </div>
+
+  <script>
+    const webhookUrl = document.getElementById('webhookUrl');
+    const recordBtn = document.getElementById('recordBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const status = document.getElementById('status');
+    const transcriptEl = document.getElementById('transcript');
+    const replyEl = document.getElementById('reply');
+
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let recordedBlob = null;
+
+    recordBtn.addEventListener('click', async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+
+        mediaRecorder.onstop = () => {
+          stream.getTracks().forEach(t => t.stop());
+          recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          status.textContent = `✅ Recorded ${(recordedBlob.size / 1024).toFixed(1)} KB. Click Send.`;
+          sendBtn.disabled = false;
+        };
+
+        mediaRecorder.start();
+        recordBtn.classList.add('recording');
+        recordBtn.textContent = '🔴 Recording...';
+        stopBtn.disabled = false;
+        sendBtn.disabled = true;
+        status.textContent = '🎙️ Recording... speak now';
+      } catch (err) {
+        status.textContent = '❌ Mic access denied: ' + err.message;
+      }
+    });
+
+    stopBtn.addEventListener('click', () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        recordBtn.classList.remove('recording');
+        recordBtn.textContent = '🎙️ Record';
+        stopBtn.disabled = true;
+      }
+    });
+
+    sendBtn.addEventListener('click', async () => {
+      if (!recordedBlob) return;
+      const url = webhookUrl.value.trim();
+      if (!url) { status.textContent = '❌ Please enter a webhook URL'; return; }
+
+      sendBtn.disabled = true;
+      status.innerHTML = '<span class="spinner"></span>Sending audio to n8n...';
+      transcriptEl.textContent = '...';
+      replyEl.textContent = '...';
+
+      try {
+        const form = new FormData();
+        form.append('audio', recordedBlob, 'recording.webm');
+
+        const res = await fetch(url, { method: 'POST', body: form });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`HTTP ${res.status}: ${errText}`);
+        }
+
+        const data = await res.json();
+        transcriptEl.textContent = data.transcript || '(empty)';
+        replyEl.textContent = data.reply || '(empty)';
+        status.textContent = '✅ Done! Pipeline complete.';
+      } catch (err) {
+        status.innerHTML = '❌ Error: ' + err.message;
+      } finally {
+        sendBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
