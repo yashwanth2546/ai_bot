@@ -12,6 +12,8 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.static(resolve(__dirname, "..")));
 
+app.get("/", (_req, res) => res.redirect("/voice-demo.html"));
+
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 8080;
 const DOMAIN = process.env.DOMAIN;
 
@@ -69,7 +71,7 @@ app.post("/demo", async (req, res) => {
     console.log(`[Demo] Reply: "${reply}"`);
 
     let replyAudio: string | undefined;
-    if (reply.trim() && process.env.ELEVENLABS_API_KEY) {
+    if (reply.trim() && process.env.ELEVENLABS_API_KEY && process.env.TTS_ENABLED === "true") {
       try {
         const audioBuf = await elevenlabsTTS(reply, "mp3_44100_128");
         replyAudio = audioBuf.toString("base64");

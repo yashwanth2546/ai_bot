@@ -290,7 +290,8 @@ export async function elevenlabsTTS(text: string, format: string = "mp3_44100_12
   return Buffer.from(await res.arrayBuffer());
 }
 
-async function synthesize(text: string): Promise<Buffer> {
+async function synthesize(text: string): Promise<Buffer | null> {
+  if (process.env.TTS_ENABLED !== "true") return null;
   return elevenlabsTTS(text, "ulaw_8000");
 }
 
@@ -366,6 +367,7 @@ export function attachMediaStreamHandler(server: Server) {
         console.log(`[Bot] ${reply}`);
 
         const ulawBuf = await synthesize(reply);
+        if (!ulawBuf) return;
         const CHUNK_SIZE = 160;
         for (let i = 0; i < ulawBuf.length; i += CHUNK_SIZE) {
           if (twilioWs.readyState !== WebSocket.OPEN) break;
