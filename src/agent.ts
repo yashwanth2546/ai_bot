@@ -198,11 +198,7 @@ export async function askLLM(transcript: string, sessionId?: string): Promise<st
       Authorization: `Bearer ${ZEN_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model: ZEN_MODEL,
-      messages,
-      max_tokens: 10000,
-    }),
+    body: JSON.stringify({ model: ZEN_MODEL, messages, max_tokens: 300 }),
   });
 
   if (!res.ok) {
@@ -242,7 +238,7 @@ export async function askLLM(transcript: string, sessionId?: string): Promise<st
     const updatedRes = await fetch(ZEN_API_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${ZEN_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: ZEN_MODEL, messages, max_tokens: 10000 }),
+      body: JSON.stringify({ model: ZEN_MODEL, messages, max_tokens: 300 }),
     });
     if (updatedRes.ok) {
       const updatedData = await updatedRes.json();
